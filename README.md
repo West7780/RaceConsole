@@ -15,7 +15,7 @@ Copy the entire repository to your home folder. Call the repository with Python3
  * User configurable lap counting gamemode
  * Saves most recently used configuration
  * A simple game loop that supports requesting information from the user dynamically
- * A pesudo-framework composed of python classes that are desgined to make future development easier
+ * A collection of python classes that are desgined to make future development easier
  
 
 ## Planned Features
