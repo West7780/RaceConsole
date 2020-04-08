@@ -10,6 +10,7 @@ Attach the Arduino via USB to a linux computer (Such as a raspberry pi zero w).
 Ensure that it has the latest version of python 3.8 installed. If the Arduino is
 
 Copy the entire repository to your home folder. Call the repository with Python3.
+Ex: Python3 RaceConsole
 
 ## Features
  * User configurable lap counting gamemode
