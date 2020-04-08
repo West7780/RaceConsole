@@ -7,7 +7,7 @@ Arduino and upload the file "RaceConsoleCompanion.ino" to it. See the file to
 get which pins you should attach the sensors to..
 
 Attach the Arduino via USB to a linux computer (Such as a raspberry pi zero w). 
-Ensure that it has the latest version of python 3.8 installed. If the Arduino is
+Ensure that it has the latest version of python 3.8 installed.
 
 Copy the entire repository to your home folder. Call the repository with Python3.
 Ex: Python3 RaceConsole
