@@ -1,0 +1,5 @@
+pip
+inflect
+pyfiglet
+curtsies
+pySerial
