@@ -30,6 +30,7 @@ Ex: Python3 RaceConsole
  * User settings menu
  * Support for multiple lanes
  * Develop a through setup guide, include list of suggested sensors and wiring schematics
+ * Ability to Record and Replay races (Suggested by u/Koppis)
  * and much more...
  
  ### A note to those looking to contribute
