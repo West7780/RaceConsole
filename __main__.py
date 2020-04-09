@@ -4,29 +4,12 @@ os.system('clear')
 os.system('tset')
 print('Slot Race Console is loading!')
 
-# fancy imports
-try:
-    import random, time, threading, datetime, string, sys, inflect, serial, json
+import random, time, threading, datetime, string, sys, inflect, serial, json
 
-    from enum import unique, IntEnum
-    from pyfiglet import Figlet
-    from curtsies import *
-    from curtsies.fmtfuncs import *
-
-except ImportError as e:
-    print(e)
-    if input('Failed to import a module. Would you like to download and install them now using pip?').lower() == 'y':
-        try:
-            import pip
-        except ImportError:
-            print('Failed to import pip. Install pip then run this script again.')
-            quit()
-        pip.main(['install', '-r', 'RaceConsole/requirements.txt'])
-        print('Done installing. Restarting now.')
-        python = sys.executable
-        os.execl(python, python, *sys.argv)
-    else:
-        quit()
+from enum import unique, IntEnum
+from pyfiglet import Figlet
+from curtsies import *
+from curtsies.fmtfuncs import *
 
 
 # utility functions
