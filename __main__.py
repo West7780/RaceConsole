@@ -4,12 +4,31 @@ os.system('clear')
 os.system('tset')
 print('Slot Race Console is loading!')
 
-import random, time, threading, datetime, string, sys, inflect, serial, json
+# fancy imports
+try:
+    import random, time, threading, datetime, string, sys, inflect, serial, json
 
-from enum import unique, IntEnum
-from pyfiglet import Figlet
-from curtsies import *
-from curtsies.fmtfuncs import *
+    import serial.tools.list_ports
+
+    from enum import unique, IntEnum
+    from pyfiglet import Figlet
+    from curtsies import *
+    from curtsies.fmtfuncs import *
+
+except ImportError as e:
+    print(e)
+    if input('Failed to import a module. Would you like to download and install them now using pip?').lower() == 'y':
+        try:
+            import pip
+        except ImportError:
+            print('Failed to import pip. Install pip then run this script again.')
+            quit()
+        pip.main(['install', '-r', 'RaceConsole/requirements.txt'])
+        print('Done installing. Restarting now.')
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+    else:
+        quit()
 
 
 # utility functions
@@ -23,6 +42,130 @@ def conditional_sleep(s, i=float(1 / 60), condition=True):
     except ZeroDivisionError:
         pass
 
+
+class RaceConsoleCompanion():
+
+    def __init__(self, port=None):
+
+        self.ser = None
+
+        if port is None:
+
+            print('Scanning for an Arduino...')
+
+            while self.ser is None:
+
+                for port, desc, hwid in sorted(serial.tools.list_ports.comports()):
+                    # print("{}: {} [{}]".format(port, desc, hwid))
+                    if 'arduino' in desc.lower():
+                        try:
+                            self.ser = serial.Serial(port, 115200, timeout=.1)
+                            print(f'Found an arduino on "{self.ser.name}" attemting to communicate...')
+                            self.print('Connected to pi!')
+                            break
+                        except Exception as e:
+                            input(str(e) + "\nConnecting to pi failed, press Enter to try again.")
+
+        else:
+
+            print('Connecting to Arduino on specified port.')
+
+            while self.ser is None:
+                try:
+                    self.ser = serial.Serial(port, 115200, timeout=.1)
+                    self.print('Connected to pi!')
+                    break
+                except Exception as e:
+                    print("Connection Failed. Trying again in 10 seconds.\nCheck that the Arduino is connected via USB.\nYou can press Ctrl+C to cancel.")
+                    time.sleep(5)
+                    print("5 seconds...")
+                    time.sleep(5)
+
+        print('Connected Successfully!')
+
+        self.time_now = 0
+        self.detected_restart_count = 0
+
+        self.get_update()
+
+    def get_response(self, message):
+
+        try:
+
+            if type(message) != bytes:
+                message += '\n'
+                message = message.encode()
+
+            result = b''
+
+            self.ser.reset_input_buffer()
+
+            while b'\n' not in result:
+
+                if not result:
+                    self.ser.write(message)
+                result += self.ser.readline()
+
+            return json.loads(result.decode())
+
+        except Exception as e:
+
+            time.sleep(0.1)
+
+            return self.get_response(message)
+
+    def reset(self):
+        self.ser.close()
+        self.__init__()
+
+    def print(self, message=''):
+
+        if len(message) > 16:
+            message = message.replace(' ', '')
+
+        return self.get_response(f'print {message[:16]}'+(" "*(16-len(message))))
+
+    def toggle_external_control(self):
+
+        return self.get_response('toggle external control')
+
+    def press_red(self):
+
+        return self.get_response('press red')
+
+    def press_green(self):
+
+        return self.get_response('press green')
+
+    def press_both(self):
+
+        return self.get_response('press both')
+
+    def set_delay(self, delay):
+
+        return self.get_response(f'wait {int(delay * 1000)}')
+
+    def set_laps(self, laps):
+
+        return self.get_response(f'laps {int(laps)}')
+
+    def toggle_playing(self):
+
+        return self.get_response(f'toggle playing')
+
+    def reset_counts(self):
+
+        return self.get_response(f'reset counts')
+
+    def get_update(self):
+
+        data = self.get_response('get all')
+
+        if self.time_now > data['time_now']:
+            self.detected_restart_count += 1
+
+        for k, v in data.items():
+            setattr(self, k, v)
 
 # classes
 class Game:
@@ -48,22 +191,8 @@ class Game:
         self.state = Game.State.PREGAME
         self.mode = Game.Mode.UNSPECIFIED
         self.player_1_wins = None
-        self.lane_1_correction = 0
-        self.lane_2_correction = 0
-        self.lane_1_raw_count = 0
-        self.lane_2_raw_count = 0
-
-    @property
-    def lane_1_count(self):
-        return self.lane_1_raw_count - self.lane_1_correction
-
-    @property
-    def lane_2_count(self):
-        return self.lane_2_raw_count - self.lane_2_correction
-
-    def reset_counts(self):
-        self.lane_1_correction = self.lane_1_raw_count
-        self.lane_2_correction = self.lane_2_raw_count
+        self.lane_1_count = 0
+        self.lane_2_count = 0
 
 
 class PromptRequest:
@@ -126,54 +255,25 @@ class PromptRequest:
 
 # loop funcs
 def serial_stuff():
-    global GAME, RUNNING
+    global GAME, RUNNING, RCC, HEADER
 
-    delay = 5
+    last_header = HEADER
+    expected_detected_restart_count = 0
 
-    ser = serial.Serial('/dev/ttyACM0', timeout=0.1)
-    raw = ""
+    if not RCC.external_control:
+        RCC.toggle_external_control()
 
-    last1 = GAME.lane_1_raw_count
-    last2 = GAME.lane_2_raw_count
+    while RUNNING and (expected_detected_restart_count == RCC.detected_restart_count):
 
-    last1time = time.time()
-    last2time = time.time()
+        RCC.get_update()
+        GAME.lane_1_count = RCC.lane_lap_counts[0]
+        GAME.lane_2_count = RCC.lane_lap_counts[1]
 
-    while RUNNING:
-        ser.write(b'B')
-        raw = ser.readline().decode("utf-8").split(' ')
+        if HEADER != last_header:
+            RCC.print(HEADER)
+            last_header = HEADER
 
-        now = time.time()
-
-        if raw:
-            try:
-                if raw:
-                    last1 = GAME.lane_1_raw_count
-                    last2 = GAME.lane_2_raw_count
-
-                    GAME.lane_1_raw_count = int(raw[0])
-                    GAME.lane_2_raw_count = int(raw[1])
-
-                    if GAME.lane_1_raw_count > last1:
-                        diff1 = GAME.lane_1_raw_count - last1
-                        if now > (last1time + delay):
-                            GAME.lane_1_correction += diff1 - 1
-                            last1time = now
-                        else:
-                            GAME.lane_1_correction += diff1
-
-                    if GAME.lane_2_raw_count > last2:
-                        diff2 = GAME.lane_2_raw_count - last2
-                        if now > (last2time + delay):
-                            GAME.lane_2_correction += diff2 - 1
-                            last2time = now
-                        else:
-                            GAME.lane_2_correction += diff2
-
-            except ValueError:
-                pass
-
-    ser.close()
+    RCC.ser.close()
 
 
 def input_processing():
@@ -234,14 +334,14 @@ def display():
         print('Graphics loading')
 
         figlet = Figlet('starwars', width=window.width - 4, justify='center')
-        fig1 = Figlet('starwars', width=int(window.width / 2), justify='center')
-        fig2 = Figlet('starwars', width=int(window.width / 2), justify='center')
+        fig1 = Figlet('starwars', width=int(window.width / 2), justify='left')
+        fig2 = Figlet('starwars', width=int(window.width / 2), justify='right')
 
         while RUNNING:
             last = now
             now = time.time()
 
-            a = FSArray(window.height, window.width)
+            a = FSArray(window.height, window.width, bg='magenta')
 
             state_control_names = {
                 Game.State.SETUP: 'Cancel',
@@ -252,16 +352,16 @@ def display():
                 Game.State.PLAYING: 'Stop'
             }
 
-            top_left = f'[Slot Race Console v0]'
-            top_right = f'Count Data: [' \
-                        f'Lane 1: ({GAME.lane_1_raw_count} - {GAME.lane_1_correction} = {GAME.lane_1_count}), ' \
-                        f'Lane 2: ({GAME.lane_2_raw_count} - {GAME.lane_2_correction} = {GAME.lane_2_count}) ]'
+            top_left = f'[Slot Race Console v1]'
+            top_right = f'Count Data: [ ' \
+                        f'Lane 1: ({GAME.lane_1_count}), ' \
+                        f'Lane 2: ({GAME.lane_2_count}) ]'
             btm_left = f'Esc: Quit, F5: Restart, Enter: {state_control_names[GAME.state]} Game, ' \
                        f'Space: Quick Start/Stop' \
                 if len(PROMPT_REQUESTS) <= 0 else PROMPT_REQUESTS[0].display
             btm_right = f'FPS: {int(1 / (now - last) * 100) / 100}, Time: {datetime.datetime.now().strftime("%I:%M:%S %p")}'
-            top_left = invert(bold(top_left + ((window.width - len(top_left) - len(top_right)) * ' ') + top_right))
-            btm_left = invert(bold(btm_left + ((window.width - len(btm_left) - len(btm_right)) * ' ') + btm_right))
+            top_left = yellow(bold(top_left + ((window.width - len(top_left) - len(top_right)) * ' ') + top_right))
+            btm_left = yellow(bold(btm_left + ((window.width - len(btm_left) - len(btm_right)) * ' ') + btm_right))
 
             a[0:1, 0:top_left.width] = [top_left]
             a[window.height - 1:window.height, 0:btm_left.width] = [btm_left]
@@ -273,13 +373,12 @@ def display():
 
             if GAME.state in [Game.State.PLAYING, Game.State.FINISHED, Game.State.CANCELED, Game.State.COUNTDOWN]:
                 score1 = fsarray(
-                    fig1.renderText(GAME.p1name + '\n' + str(GAME.lane_1_count)).split('\n'))
+                    fig1.renderText(GAME.p1name + '\n' + str(GAME.lane_1_count)).split('\n'), bg='black', fg='magenta')
                 score2 = fsarray(
-                    fig2.renderText(GAME.p2name + '\n' + str(GAME.lane_2_count)).split('\n'))
+                    fig2.renderText(GAME.p2name + '\n' + str(GAME.lane_2_count)).split('\n'), bg='black', fg='cyan')
 
-                a[window.height - score1.height - 2:window.height - 2, 3:score1.width + 3] = score1
-                a[window.height - score2.height - 2:window.height - 2,
-                window.width - score2.width - 8:window.width + 8] = score2
+                a[window.height - score1.height - 1:window.height - 1, 3:score1.width + 3] = score1
+                a[window.height - score2.height - 1:window.height - 1, window.width - score2.width - 3:window.width + 3] = score2
 
             window.render_to_terminal(a)
 
@@ -287,7 +386,7 @@ def display():
 
 
 def game_loop():
-    global RUNNING, RESTART, HEADER, GAME, INFLECT_ENGINE, PROMPT_REQUESTS, PROMPT_RESPONSES
+    global RUNNING, RESTART, HEADER, GAME, INFLECT_ENGINE, PROMPT_REQUESTS, PROMPT_RESPONSES, RCC
     last_state = GAME.state
 
     while RUNNING:
@@ -296,7 +395,7 @@ def game_loop():
         elif GAME.state == GAME.State.SETUP:
             HEADER = 'Setting Up Game'
             if len(PROMPT_REQUESTS) == 0:
-                GAME.reset_counts()
+                RCC.reset_counts()
                 GAME.p1name = PROMPT_RESPONSES['p1name']
                 GAME.p2name = PROMPT_RESPONSES['p2name']
                 GAME.num_laps = PROMPT_RESPONSES['laps']
@@ -309,8 +408,6 @@ def game_loop():
             conditional_sleep(1, GAME.state == Game.State.COUNTDOWN)
             HEADER = 'Starting in 1...'
             conditional_sleep(1, GAME.state == Game.State.COUNTDOWN)
-            HEADER = 'GO!!!'
-            conditional_sleep(2.33, GAME.state == Game.State.COUNTDOWN)
             if GAME.lane_1_count + GAME.lane_2_count > 0:
                 GAME.state = Game.State.CANCELED
                 HEADER = 'False Start!'
@@ -319,15 +416,11 @@ def game_loop():
                 GAME.state = GAME.State.PLAYING
         elif GAME.state == GAME.State.PLAYING:
             if GAME.mode == Game.Mode.LAPS:
-                HEADER = f'First to {INFLECT_ENGINE.number_to_words(GAME.num_laps)} {INFLECT_ENGINE.plural("lap", GAME.num_laps)}'
+                HEADER = f'First to {GAME.num_laps} {INFLECT_ENGINE.plural("lap", GAME.num_laps)}'
             elif GAME.mode == Game.Mode.FASTEST:
-                HEADER = f'Fastest out of {INFLECT_ENGINE.number_to_words(GAME.num_laps)} {INFLECT_ENGINE.plural("lap", GAME.num_laps)}'
+                HEADER = f'Fastest out of {GAME.num_laps} {INFLECT_ENGINE.plural("lap", GAME.num_laps)}'
             else:
-                HEADER = f'{GAME.mode}'
-                print(GAME.mode)
-                time.sleep(1.5)
-                RUNNING = False
-                RESTART = False
+                break
             if max([GAME.lane_1_count, GAME.lane_2_count]) >= GAME.num_laps:
                 GAME.state = GAME.State.FINISHED
                 if GAME.lane_1_count > GAME.lane_2_count:
@@ -358,6 +451,7 @@ INFLECT_ENGINE = inflect.engine()
 PROMPT_REQUESTS = []
 RUNNING = True
 GAME = Game()
+RCC = RaceConsoleCompanion('/dev/ttyACM0')
 RESTART = False
 HEADER = 'Slot Race Console'
 
@@ -384,7 +478,7 @@ if RUNNING:
     for thread in threads:
         report += f'\t{loop_funcs[threads.index(thread)].__name__}: {thread.is_alive()}\n'
 else:
-    report += green("Quit normally.")
+    report += green("Quit normally.\n")
 
 if sum([thread.is_alive() for thread in threads]) > 0:
     conditional_sleep(3, condition=(sum([thread.is_alive() for thread in threads]) > 0))
@@ -395,7 +489,7 @@ if sum([thread.is_alive() for thread in threads]) > 0:
         for thread in threads:
             report += f'\t{loop_funcs[threads.index(thread)].__name__}: {thread.is_alive()}\n'
     else:
-        report += 'One or more threads took longer than expected to stop.'
+        report += 'One or more threads took longer than expected to stop.\n'
 
 with open('RaceConsole/data.json', 'w') as json_file:
     json.dump(PROMPT_RESPONSES, json_file)
@@ -410,11 +504,7 @@ if RESTART:
 
     python = sys.executable
     os.execl(python, python, *sys.argv)
-
-else:
-    print(invert('Slot Race Console is closing. Thanks for playing!'))
-
-if stopped_unexpectedly:
+elif stopped_unexpectedly:
     print('Unfortunately, the game stopped unexpectedly. Typically this is '
           'caused by an exception in one of the threads.\n\n' + underline('Report'))
     print(report)
