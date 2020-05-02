@@ -15,6 +15,10 @@ A python program that interfaces any slot car track into a text art based video 
  - Appropriate cables to connect everything
  - and obviously a slot car track
 
+## Abbriviations
+ - RCC reffers to Arduino
+ - RC reffers to the Linux Computer
+
 ## Setup Instructions
 You will need to attach a potentiometer and two line break sensors to an 
 Arduino and upload the file "RaceConsoleCompanion.ino" to it. See the file to 
