@@ -2,6 +2,7 @@
 A python program turns your slot car track into a text art based video game
 
 ##Hardware
+
 ###Required
  - Arduino Uno or similar Arduino compatable board with at least 5 Analog and 13 digital pins
  - Linux computer
