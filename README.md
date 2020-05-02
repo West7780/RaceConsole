@@ -1,5 +1,5 @@
 # RaceConsole
-A python program turns your slot car track into a text art based video game
+A python program that interfaces any slot car track into a text art based video game
 
 ## Hardware
  - Arduino Uno or similar Arduino compatable board with at least 5 Analog and 13 digital pins
@@ -13,6 +13,7 @@ A python program turns your slot car track into a text art based video game
  - 2 momentary push buttons (Preferably Red and Green colored)
  - 2 resistors
  - Appropriate cables to connect everything
+ - and obviously a slot car track
 
 ## Setup Instructions
 You will need to attach a potentiometer and two line break sensors to an 
