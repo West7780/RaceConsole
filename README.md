@@ -1,7 +1,7 @@
 # RaceConsole
 A python program that interfaces any slot car track into a text art based video game
 
-## Hardware
+## Required Hardware
  - Arduino Uno or similar Arduino compatable board with at least 5 Analog and 13 digital pins
  - Linux computer
  - Keyboard
