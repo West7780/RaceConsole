@@ -1,9 +1,7 @@
 # RaceConsole
 A python program turns your slot car track into a text art based video game
 
-##Hardware
-
-###Required
+## Hardware
  - Arduino Uno or similar Arduino compatable board with at least 5 Analog and 13 digital pins
  - Linux computer
  - Keyboard
@@ -11,17 +9,16 @@ A python program turns your slot car track into a text art based video game
  - 2 to 4 Line break sensors
  - 2 to 4 Resistors
  - 10k Potentiometer
- - Appropriate cables to connect the list above
-###Optional (Required for RCC Standalone)
  - 16x2 Character Display, compatible with Arduino Liquid Crystal Library
  - 2 momentary push buttons (Preferably Red and Green colored)
  - 2 resistors
+ - Appropriate cables to connect everything
 
 ## Setup Instructions
 You will need to attach a potentiometer and two line break sensors to an 
 Arduino and upload the file "RaceConsoleCompanion.ino" to it. See the file to 
 get which pins you should attach these to. Optionally you can attach a 16x2
-Character Display and two buttons to the arduino.
+Character Display and two buttons to the Arduino.
 
 Attach the Arduino via USB to a linux computer (Such as a raspberry pi zero w). 
 Ensure that it has the latest python 3.8.1 and pip installed.
